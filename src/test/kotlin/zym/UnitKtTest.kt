@@ -1,14 +1,21 @@
 package zym
 
-import org.apache.logging.log4j.core.util.Loader
+import com.alibaba.fastjson.JSON
 import org.junit.Test
+
 /**
  * create by 2017/6/1.
 
  * @author yimin
  */
 class UnitKtTest {
-	@Test fun testLoader{
-		println( Loader.getResource("log4j2-test.xml", tag::class.java.classLoader).file)
+	@Test fun testLoader(){
+		println(readFileContentByString("log4j2-test.xml"))
+	}
+
+	@Test fun testJson(){
+		val dbConfig = JSON.parseObject(readFileContentByString("db.config"))
+		println(dbConfig.getJSONObject("default").getString("DBPoolNum")!!)
+
 	}
 }
