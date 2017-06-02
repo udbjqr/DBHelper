@@ -3,6 +3,16 @@ package zym.dbHelper
 import com.alibaba.fastjson.JSONObject
 import java.sql.ResultSet
 
+/**
+ * 数据库操作帮助类.
+ *
+ * 此类设计目标：简化数据库的操作，加速开发效率
+ *
+ * 针对SQL的数据格式，可使用format方法来格式化，这需要采用类似String.format方式。使用%1，%2.这类写法。
+ * 例：
+ *   Helper.select(Helper.format("select * from table where a= %1 and %2 = %3","name","id",20),{set -> {set.get()}})
+ *
+ */
 interface Helper {
 	/**
 	 * 执行一个无返回值的SQL操作.
@@ -69,6 +79,14 @@ interface Helper {
 }
 
 abstract class AbstractHelper(protected val config: JSONObject) : Helper {
+	protected val DB_SERVER_ADD = "DBServerAdd"
+	protected val DB_SERVER_PORT = "DBServerPort"
+	protected val DB_DATA_BASE_NAME = "DBDataBaseName"
+	protected val DB_PASSWORD = "DBPassword"
+	protected val DB_USER_NAME = "DBUserName"
+	protected val CONNECTION_TIMEOUT = "ConnectionTimeout"
+	protected val DB_POOL_NUM = "DBPoolNum"
+
 	override fun transition(value: Any): String {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
@@ -92,7 +110,6 @@ abstract class AbstractHelper(protected val config: JSONObject) : Helper {
 	override fun <T> queryWithOneValue(sql: String, then: (result: T) -> Unit, error: (sql: String, e: Exception?) -> Unit): T {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
-
 
 
 	override fun beginTran(): Boolean {
