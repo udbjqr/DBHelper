@@ -78,7 +78,7 @@ interface Helper {
 
 }
 
-abstract class AbstractHelper(protected val config: JSONObject) : Helper {
+abstract class AbstractHelper : Helper {
 	protected val DB_SERVER_ADD = "DBServerAdd"
 	protected val DB_SERVER_PORT = "DBServerPort"
 	protected val DB_DATA_BASE_NAME = "DBDataBaseName"
@@ -126,6 +126,6 @@ abstract class AbstractHelper(protected val config: JSONObject) : Helper {
 }
 
 
-class MSSQLServer(config: JSONObject) : AbstractHelper(config) {}
-class MySql(config: JSONObject) : AbstractHelper(config) {}
-class H2(config: JSONObject) : AbstractHelper(config) {}
+class MSSQLServer(config: JSONObject) : AbstractHelper()
+class MySql(config: JSONObject) : AbstractHelper()
+class H2(config: JSONObject) : AbstractHelper()

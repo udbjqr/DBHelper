@@ -44,8 +44,7 @@ hs_err_pid*.log
 
 #Idea project file and directory
 .idea
-**/.iml
-.iml
+**/*.iml
 
 #gradle
 /gradle

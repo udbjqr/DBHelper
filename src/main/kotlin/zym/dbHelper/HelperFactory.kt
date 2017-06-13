@@ -3,7 +3,7 @@ package zym.dbHelper
 import com.alibaba.fastjson.JSON
 import com.alibaba.fastjson.JSONObject
 import org.apache.logging.log4j.LogManager
-import zym.readFileContentByString
+import zym.units.readFileContentByString
 
 private val helpers = HashMap<String, Helper>()
 
@@ -27,7 +27,7 @@ object HelperFactory : Map<String, Helper> by helpers {
 		when (config["DBType"]) {
 			"MSSQL" -> return MSSQLServer(config)
 			"ORACLE" -> return OracleHelper(config)
-			"PGSQL" -> return PostgreSqlHelper(config)
+			"PGSQL" -> return PostgresqlHelper(config)
 			"MYSQL" -> return MySql(config)
 			"H2" -> return H2(config)
 			else -> throw IllegalArgumentException("类型都乱指定，你想闹哪样：${config["DBType"]}，去看db.config文件去。")

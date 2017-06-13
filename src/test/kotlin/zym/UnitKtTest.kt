@@ -2,6 +2,7 @@ package zym
 
 import com.alibaba.fastjson.JSON
 import org.junit.Test
+import zym.units.readFileContentByString
 
 /**
  * create by 2017/6/1.
@@ -19,18 +20,7 @@ class UnitKtTest {
 
 	}
 
-	@Test fun testVararg() {
-		println(ddd(1,2,3,4,5,6,7,8,9,10))
-	}
+	@Test fun testConnection(){
 
-	private fun ddd(vararg values: Int): Int {
-		var sum = 0
-		for (i in values.indices) {
-			logger.trace("$i \t $sum")
-			sum += values[i]
-		}
-
-		values.let { println(it.size)  }
-		return sum
 	}
 }
