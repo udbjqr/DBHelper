@@ -19,8 +19,4 @@ class UnitKtTest {
 		println(dbConfig.getJSONObject("default").getString("DBPoolNum")!!)
 
 	}
-
-	@Test fun testConnection(){
-
-	}
 }
