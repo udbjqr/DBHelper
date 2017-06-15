@@ -6,6 +6,4 @@ package zym.units
  * create by 2017/6/13.
  * @author zym
  */
-class CircularItem<T>(val item: T) {
-	var next: CircularItem<T> = this
-}
+class CircularItem<T>(var item: T,var next: CircularItem<T>? = null)
