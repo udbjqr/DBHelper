@@ -15,7 +15,8 @@
 **/target
 **/build
 /build
-
+/out
+**/out
 
 #Log files
 **/log
