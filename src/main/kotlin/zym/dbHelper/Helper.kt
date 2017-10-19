@@ -1,47 +1,98 @@
 package zym.dbHelper
 
-import com.alibaba.fastjson.JSONObject
 import org.apache.logging.log4j.LogManager
 import java.sql.ResultSet
+
+internal val log = LogManager.getLogger(Helper::class.java.name)
+
+internal enum class Joint {
+	SELECT,
+	UPDATE,
+	DELETE,
+	FORM,
+	WHERE,
+	GROUP_BY,
+	HAVING,
+	ORDER_BY,
+	LIMIT,
+	OFFSET
+}
+
+internal val jointNum = Joint.values().size
 
 /**
  * 数据库操作帮助类.
  *
- * 此类设计目标：简化数据库的操作，加速开发效率
+ * 每个对象做为一个查询或修改使用。
  *
- * 针对SQL的数据格式，可使用format方法来格式化，这需要采用类似String.format方式。使用%1，%2.这类写法。
- * 例：
- *   Helper.select(Helper.format("select * from table where a= %1 and %2 = %3","name","id",20),{set -> {set.get()}})
+ * 当需要执行多次操作时,可持有此接口的实例,并且设置autoCommit为false.
+ * 此后,必须在结束时手工调用commit或rollback方法。
  *
  */
 interface Helper {
-	/**
-	 * 执行一个无返回值的SQL操作.
-	 *
-	 * @return 返回影响的行数
-	 */
-	fun execute(sql: String, error: (sql: String, e: Exception?) -> Unit, then: () -> Unit): Int
-
-	/**
-	 * 执行一条单独的查询语句，必须以select开头，并且将获得数据调用then方法进行处理.
-	 * @param then 此方法必须存在，获取的数据集在
-	 * @return 返回一个空值
-	 */
-	fun select(sql: String, limit: Int = 0, offset: Int = 0, error: (sql: String, e: Exception?) -> Unit = { s, e -> Unit }, then: ((set: ResultSet) -> Unit)): Unit
-
-	/**
-	 * 连续执行多个sql语句，并在每一个语句执行完后调用then方法.
-	 *
-	 * 这个过程将是一个完整过程，任何其中一个语句执行错误，均将整个失败并执行回滚操作。
-	 *
-	 * @return 返回最后执行的语句的第一行第一个值
-	 */
-	fun <T> execBatchSql(sqls: Iterable<String>, error: (sql: String, e: Exception?) -> Unit = { s, e -> Unit }, then: (set: ResultSet) -> Unit = { Unit }): T
+	fun getAutoCommit(): Boolean
+	fun select(selectSql: String): Helper
+	fun update(updateSql: String): Helper
+	fun delete(deleteSql: String): Helper
+	fun from(fromSql: String): Helper
+	fun where(whereSql: String): Helper
+	fun groupBy(groupBySql: String): Helper
+	fun having(havingSql: String): Helper
+	fun orderBy(orderBySql: String): Helper
+	fun limit(limitNumber: Int): Helper
+	fun offset(offsetNumber: Int): Helper
 
 	/**
 	 * 执行一条单独的查询语句，必须以select开头，并且将获得的第一行第一列的数据返回.
+	 *
+	 * @param sql 需要执行的sql语句
+	 * @param then 成功后执行的操作
+	 * @return 返回第一行第一列的值,无论获得多少.
 	 */
-	fun <T> queryWithOneValue(sql: String, error: (sql: String, e: Exception?) -> Unit = { s, e -> Unit }, then: (result: T) -> Unit = { Unit }): T
+	fun <T> queryWithOneValue(sql: String, then: (T) -> T = { it }): T?
+
+	/**
+	 * 执行一条单独的查询语句，并且将获得的第一行第一列的数据返回.
+	 *
+	 * 执行此操作必须先使用select()方法,设置了要查询的对象
+	 * @param then 成功后执行的操作
+	 * @return 返回第一行第一列的值,无论获得多少.
+	 */
+	fun <T> queryWithOneValue(then: (T) -> T = { it }): T?
+
+	/**
+	 * 执行一个无返回值的SQL操作.
+	 *
+	 * @param sql 需要执行的sql语句
+	 * @param then 成功后执行的操作
+	 * @return 返回影响的行数
+	 */
+	fun execute(sql: String, then: (Int) -> Int = { it }): Int
+
+	/**
+	 * 执行一个无返回值的SQL操作.
+	 * 执行此操作必须先使用update()或delete()方法,设置了要处理的对象
+	 *
+	 * @param then 成功后执行的操作
+	 * @return 返回影响的行数
+	 */
+	fun execute(then: (Int) -> Int = { it }): Int
+
+	/**
+	 * 执行查询语句，
+	 *
+	 *  执行此操作必须先使用select()方法,设置了要查询的对象
+	 * @param sql 需要执行的sql语句
+	 * @param then 成功后执行的操作
+	 */
+	fun query(sql: String, then: (ResultSet) -> Unit)
+
+	/**
+	 * 执行查询语句，必须以select开头.
+	 *
+	 * @param then 成功后执行的操作
+	 */
+	fun query(then: (ResultSet) -> Unit)
 
 	/**
 	 * 开始一个事务.
@@ -49,7 +100,7 @@ interface Helper {
 	 * 此处事务将是单层的，即已经开始了一个事务，无法进行嵌套。
 	 * 已经开始过的事务在调用此方法时将直接返回false
 	 */
-	fun beginTran(): Boolean
+	fun beginTran()
 
 	/**
 	 * 提交数据操作
@@ -66,100 +117,247 @@ interface Helper {
 	/**
 	 * 将各种传入值格式化成数据库理解的值
 	 */
-	fun transition(value: Any): String
+	fun format(value: Any): String
 
 	/**
-	 * 类似String.format操作，将字符串与值做格式化.
+	 * 操作完成后调用此操作来结束此对象的使用.并将资源返回以后使用.
 	 *
-	 * 采用：%1，%2 这样的格式，允许一个参数多次使用
+	 * 在autoCommit 为true时,调用query()\execute()\queryWithOneValue()时,均会自动调用此方法。
+	 * 在autoCommit 为false时,在调用commit()\rollback()时,将会自动调用此方法。以结束一次使用。
+	 *
+	 * 如果事务开启时直接调用此方法,将会执行rollback()方法后结束对象。
+	 * 此方法在调用后再次使用此对象任何方法均将获得一个OperatorIsEnd的异常。
 	 */
-	fun format(pattern: String, vararg values: Any): String
-
+	fun close()
 }
 
-abstract class AbstractHelper : Helper {
-	protected val log = LogManager.getLogger(AbstractHelper::class.java.name)
+abstract class AbstractJDBCHelper(private val connection: Connection) : Helper {
+	private var jointSql = Array(jointNum) { "" }
+	private var isUsed = false
 
-	protected val DB_SERVER_ADD = "DBServerAdd"
-	protected val DB_SERVER_PORT = "DBServerPort"
-	protected val DB_DATA_BASE_NAME = "DBDataBaseName"
-	protected val DB_PASSWORD = "DBPassword"
-	protected val DB_USER_NAME = "DBUserName"
-	protected val CONNECTION_TIMEOUT = "ConnectionTimeout"
-	protected val DB_POOL_NUM = "DBPoolNum"
-
-	internal var pool: ConnectionPool? = null
-
-
-	open fun getConnection(): Connection {
-		return pool!!.getFreeConn()
+	private fun checkOperator() {
+		if (isUsed || connection.isClosed) {
+			throw OperatorIsEnd("此对象的操作已经过期,请重新申请对象。")
+		}
 	}
 
-	override fun execute(sql: String, error: (sql: String, e: Exception?) -> Unit, then: () -> Unit): Int {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+
+	override fun getAutoCommit(): Boolean {
+		return connection.autoCommit
 	}
 
-	override fun select(sql: String, limit: Int, offset: Int, error: (sql: String, e: Exception?) -> Unit, then: (set: ResultSet) -> Unit) {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	override fun select(selectSql: String): Helper {
+		jointSql[Joint.SELECT.ordinal] = selectSql
+		return this
 	}
 
-	override fun <T> execBatchSql(sqls: Iterable<String>, error: (sql: String, e: Exception?) -> Unit, then: (set: ResultSet) -> Unit): T {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	override fun update(updateSql: String): Helper {
+		jointSql[Joint.UPDATE.ordinal] = updateSql
+		return this
 	}
 
-	override fun <T> queryWithOneValue(sql: String, error: (sql: String, e: Exception?) -> Unit, then: (result: T) -> Unit): T {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	override fun delete(deleteSql: String): Helper {
+		jointSql[Joint.DELETE.ordinal] = deleteSql
+		return this
 	}
 
-	override fun beginTran(): Boolean {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	override fun from(fromSql: String): Helper {
+		jointSql[Joint.FORM.ordinal] = fromSql
+		return this
+	}
+
+	override fun where(whereSql: String): Helper {
+		jointSql[Joint.WHERE.ordinal] = whereSql
+		return this
+	}
+
+	override fun groupBy(groupBySql: String): Helper {
+		jointSql[Joint.GROUP_BY.ordinal] = groupBySql
+		return this
+	}
+
+	override fun having(havingSql: String): Helper {
+		jointSql[Joint.HAVING.ordinal] = havingSql
+		return this
+	}
+
+	override fun orderBy(orderBySql: String): Helper {
+		jointSql[Joint.ORDER_BY.ordinal] = orderBySql
+		return this
+	}
+
+	override fun limit(limitNumber: Int): Helper {
+		jointSql[Joint.LIMIT.ordinal] = limitNumber.toString()
+		return this
+	}
+
+	override fun offset(offsetNumber: Int): Helper {
+		jointSql[Joint.OFFSET.ordinal] = offsetNumber.toString()
+		return this
+	}
+
+	override fun <T> queryWithOneValue(sql: String, then: (T) -> T): T? {
+		checkOperator()
+
+		var result: T? = null
+		connection.createStatement().use {
+			it.executeQuery(sql).use {
+				it.next()
+				@Suppress("UNCHECKED_CAST")
+				result = it.getObject(1) as T
+			}
+		}
+
+		if (connection.autoCommit) {
+			close()
+		}
+
+		return result
+	}
+
+	override fun <T> queryWithOneValue(then: (T) -> T): T? {
+		return queryWithOneValue(generateQuerySql(), then)
+	}
+
+	override fun execute(sql: String, then: (Int) -> Int): Int {
+		checkOperator()
+
+		var result = -1
+		connection.createStatement().use { result = then(it.executeUpdate(sql)) }
+
+		if (connection.autoCommit) {
+			close()
+		}
+
+		return result
+	}
+
+	override fun execute(then: (Int) -> Int): Int {
+		return execute(generateExecuteSql(), then)
+	}
+
+	override fun query(sql: String, then: (ResultSet) -> Unit) {
+		checkOperator()
+
+		log.debug("sql:$sql")
+		connection.createStatement().use { it.executeQuery(sql).use(then) }
+
+		if (connection.autoCommit) {
+			close()
+		}
+	}
+
+	override fun query(then: (ResultSet) -> Unit) {
+		query(generateQuerySql(), then)
+	}
+
+	private fun generateQuerySql(): String {
+		return buildString {
+			append("select ").append(if (jointSql[Joint.SELECT.ordinal] != "") jointSql[Joint.SELECT.ordinal] else "*")
+			if (jointSql[Joint.FORM.ordinal] != "") append(" from ").append(jointSql[Joint.FORM.ordinal])
+			if (jointSql[Joint.WHERE.ordinal] != "") append(" where ").append(jointSql[Joint.WHERE.ordinal])
+			if (jointSql[Joint.GROUP_BY.ordinal] != "") append(" group by ").append(jointSql[Joint.GROUP_BY.ordinal])
+			if (jointSql[Joint.HAVING.ordinal] != "") append(" having ").append(jointSql[Joint.HAVING.ordinal])
+			if (jointSql[Joint.ORDER_BY.ordinal] != "") append(" order by ").append(jointSql[Joint.ORDER_BY.ordinal])
+			if (jointSql[Joint.OFFSET.ordinal] != "") append(" offset ").append(jointSql[Joint.OFFSET.ordinal])
+			if (jointSql[Joint.LIMIT.ordinal] != "") append(" limit ").append(jointSql[Joint.LIMIT.ordinal])
+
+			append(";")
+		}
+	}
+
+	private fun generateExecuteSql(): String {
+		return buildString {
+			if (jointSql[Joint.UPDATE.ordinal] != "")
+				append("update ").append(jointSql[Joint.UPDATE.ordinal])
+			else
+				append("delete ").append(jointSql[Joint.DELETE.ordinal])
+
+			if (jointSql[Joint.FORM.ordinal] != "") append(" from ").append(jointSql[Joint.FORM.ordinal])
+			if (jointSql[Joint.WHERE.ordinal] != "") append(" where ").append(jointSql[Joint.WHERE.ordinal])
+			if (jointSql[Joint.GROUP_BY.ordinal] != "") append(" group by ").append(jointSql[Joint.GROUP_BY.ordinal])
+			if (jointSql[Joint.HAVING.ordinal] != "") append(" having ").append(jointSql[Joint.HAVING.ordinal])
+			if (jointSql[Joint.ORDER_BY.ordinal] != "") append(" order by ").append(jointSql[Joint.ORDER_BY.ordinal])
+			if (jointSql[Joint.OFFSET.ordinal] != "") append(" offset ").append(jointSql[Joint.OFFSET.ordinal])
+			if (jointSql[Joint.LIMIT.ordinal] != "") append(" limit ").append(jointSql[Joint.LIMIT.ordinal])
+			append(";")
+		}
+	}
+
+
+	override fun beginTran() {
+		checkOperator()
+
+		if (!connection.autoCommit) {
+			log.error("事务已经开始,不能再次开始")
+			throw NestedTransactionException("事务已经开始")
+		} else {
+			connection.autoCommit = false
+		}
 	}
 
 	override fun commit() {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+		checkOperator()
+
+		if (!connection.autoCommit) {
+			isUsed = true
+			connection.commit()
+			log.trace("事务正常结束")
+		} else {
+			log.warn("没有需要结束的事务")
+		}
 	}
 
 	override fun rollback() {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+		checkOperator()
+
+		if (!connection.autoCommit) {
+			isUsed = true
+			connection.rollback()
+			log.trace("事务已经提交回滚")
+		} else {
+			log.warn("没有需要结束的事务")
+		}
+
 	}
 
-	override fun transition(value: Any): String {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-	}
 
-	override fun format(pattern: String, vararg values: Any): String {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	override fun close() {
+		if (!connection.autoCommit) {
+			log.warn("关闭前有未结束的事务,强制回滚。")
+			rollback()
+		}
+
+		isUsed = true
+		connection.close()
 	}
 }
 
 
-class MSSQLServer(config: JSONObject) : AbstractHelper()
-class MySql(config: JSONObject) : AbstractHelper()
-class H2(config: JSONObject) : AbstractHelper()
-
-/**
- * 事务对象.
- * 此对象当用户请求开始一个事务构造,在使用事务期间必须一直执有此对象。
- * 所执行的语句也必须调用此事务内语句。
- * 最后调用此对象的commit或者rollback方法。
- */
-class Transaction internal constructor(val helper: AbstractHelper) : AbstractHelper(), Helper by helper {
-	val conn = pool!!.getAloneConn()
-
-	override fun getConnection(): Connection {
-		return conn
+@Suppress("unused")
+class MSSQLServer(connection: Connection) : AbstractJDBCHelper(connection) {
+	override fun format(value: Any): String {
+		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
+}
 
-	override fun beginTran(): Boolean {
-		throw NestedTransactionExp("目前不允许事务的嵌套")
+@Suppress("unused")
+class MySql(connection: Connection) : AbstractJDBCHelper(connection) {
+	override fun format(value: Any): String {
+		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
+}
 
-	override fun commit() {
-		conn.commit()
+@Suppress("unused")
+class H2(connection: Connection) : AbstractJDBCHelper(connection) {
+	override fun format(value: Any): String {
+		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
+}
 
-	override fun rollback() {
-		return conn.rollback()
+@Suppress("unused")
+class OracleHelper(connection: Connection) : AbstractJDBCHelper(connection) {
+	override fun format(value: Any): String {
+		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
-
 }

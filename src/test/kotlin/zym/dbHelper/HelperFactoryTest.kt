@@ -1,7 +1,6 @@
 package zym.dbHelper
 
 import org.junit.Test
-import java.sql.Connection
 import kotlin.concurrent.thread
 
 /**
@@ -10,47 +9,41 @@ import kotlin.concurrent.thread
  * @author zym
  */
 class HelperFactoryTest {
-	@Test fun getDBHelper() {
-		val helper = HelperFactory.helper
-		println(helper)
-	}
-
-	@Test fun testgetAloneConnection() {
-		val helper = HelperFactory.helper
-		if (helper is PostgresqlHelper) {
-			val pool = helper.pool
-			val aloneConn: Connection = pool!!.getAloneConn()
-			assert(pool.aloneCount == 1)
-			aloneConn.close()
-			assert(pool.aloneCount == 0)
+	@Test
+	fun getDBHelper() {
+		thread {
+			while (true) {
+				val helper = JDBCHelperFactory.helper
+				helper.query("select count(*) from test;") {
+					while (it.next()) {
+						println("${it.getObject(1)}")
+					}
+				}
+			}
 		}
-	}
-
-	@Test fun testgetConnection() {
-		val conns = ArrayList<Connection>()
 
 		thread(start = true) {
 			while (true) {
-				if (conns.isEmpty()) {
-					Thread.sleep(1000)
-				}
-				val conn = conns.removeAt(0)
-				conn.close()
-				logPool.debug("释放连接，$conn")
-				Thread.sleep(100)
+				val helper = JDBCHelperFactory.helper
+				helper.execute("insert into test(name) values('aaaaaa')")
 			}
 		}
 
-		val helper = HelperFactory.helper
-
-		if (helper is PostgresqlHelper) {
-			val pool = helper.pool
-			for (i in 1..99) {
-				val free = pool!!.getFreeConn()
-				conns.add(free)
-				logPool.debug("得到连接，$free")
-			}
+		val lock = Object()
+		synchronized(lock) {
+			lock.wait()
+			Thread().join()
 		}
 	}
 
+
+	@Test
+	fun testIns() {
+		val helper = JDBCHelperFactory.helper
+		helper.select("id,abc,dd").where(" id > 2").from("ddd").query {
+			while (it.next()) {
+				println("${it.getObject(1)}\t\t${it.getObject(2)}\t\t${it.getObject(3)}")
+			}
+		}
+	}
 }

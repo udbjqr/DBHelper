@@ -10,10 +10,13 @@ import org.junit.Test
 class HelperManagerTest{
 
 	@Test fun testMember(){
-		println(HelperFactory.helper)
-		println(HelperFactory.getHelper("other"))
-		println(HelperFactory["other"])
-		println(HelperFactory["default"])
+		System.out.println(AB.values())
+		System.out.println(AB.values())
+		System.out.println(AB.values())
+	}
+
+	enum class AB{
+		abc,dd
 	}
 
 }
