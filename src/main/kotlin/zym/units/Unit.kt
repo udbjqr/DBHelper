@@ -5,7 +5,7 @@ import org.apache.logging.log4j.core.util.Loader
 import java.io.File
 import java.nio.charset.Charset
 
-val logger = LogManager.getLogger("units")!!
+private val logger = LogManager.getLogger("zym.units")!!
 
 
 /**
@@ -20,7 +20,7 @@ val logger = LogManager.getLogger("units")!!
  * @return 读取到的字符串
  */
 fun readFileContentByString(fileName: String, charset: Charset = Charsets.UTF_8): String {
-	logger.debug("Reading configuration from file name: $fileName")
+	logger.debug("以 $charset 格式读文件: $fileName。")
 
 	return try {
 		val fullPath = Loader.getResource(fileName, Loader::class.java.classLoader).file

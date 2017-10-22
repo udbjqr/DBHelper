@@ -9,15 +9,14 @@ import kotlin.concurrent.thread
  * @author zym
  */
 class HelperFactoryTest {
+
 	@Test
 	fun getDBHelper() {
 		thread {
 			while (true) {
 				val helper = JDBCHelperFactory.helper
 				helper.query("select count(*) from test;") {
-					while (it.next()) {
-						println("${it.getObject(1)}")
-					}
+					println("${it.getObject(1)}")
 				}
 			}
 		}
@@ -40,10 +39,8 @@ class HelperFactoryTest {
 	@Test
 	fun testIns() {
 		val helper = JDBCHelperFactory.helper
-		helper.select("id,abc,dd").where(" id > 2").from("ddd").query {
-			while (it.next()) {
-				println("${it.getObject(1)}\t\t${it.getObject(2)}\t\t${it.getObject(3)}")
-			}
+		helper.select("*").from("test2").query {
+			logPool.info("${it.getObject(1)}\t\t${it.getObject(2)}")
 		}
 	}
 }

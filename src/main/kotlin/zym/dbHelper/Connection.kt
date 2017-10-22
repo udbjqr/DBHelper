@@ -1,7 +1,6 @@
 package zym.dbHelper
 
 import org.apache.logging.log4j.LogManager
-import zym.units.CircularItem
 import java.sql.DriverManager
 
 typealias JConn = java.sql.Connection
@@ -64,7 +63,8 @@ class ConnectionPool(private val connStr: String, private val userName: String, 
 
 	private fun handleIdleReplaceConnection(connWrap: CircularItem) {
 		//如果连接空闲时间超过指定时间，重新连接
-		if (connWrap.item.idleTimestamp + timedOut > System.currentTimeMillis()) {
+		if (connWrap.item.idleTimestamp + timedOut < System.currentTimeMillis()) {
+			logPool.debug("超时,换连接。上次使用时间:${connWrap.item.idleTimestamp},超时时间:$timedOut,当前系统时间:${System.currentTimeMillis()}")
 			connWrap.item.realClose()
 			connWrap.item = createConnection()
 		}

@@ -5,7 +5,7 @@ import java.sql.ResultSet
 
 internal val log = LogManager.getLogger(Helper::class.java.name)
 
-internal enum class Joint {
+enum class Joint {
 	SELECT,
 	UPDATE,
 	DELETE,
@@ -83,9 +83,18 @@ interface Helper {
 	 *
 	 *  执行此操作必须先使用select()方法,设置了要查询的对象
 	 * @param sql 需要执行的sql语句
-	 * @param then 成功后执行的操作
+	 * @param then 成功后执行的操作,query方法将循环ResultSet.回调函数不需要再次写while循环方法
 	 */
 	fun query(sql: String, then: (ResultSet) -> Unit)
+
+	/**
+	 * 执行查询语句. 需要执行此方法,传入的joint参数必须按Joint类顺序指定。
+	 *
+	 *  执行此操作必须先使用select()方法,设置了要查询的对象
+	 * @param joint 存储sql语句的数组。存放顺序需要一致
+	 * @param then 成功后执行的操作,query方法将循环ResultSet.回调函数不需要再次写while循环方法
+	 */
+	fun query(joint: Array<String>, then: (ResultSet) -> Unit)
 
 	/**
 	 * 执行查询语句，必须以select开头.
@@ -129,6 +138,22 @@ interface Helper {
 	 * 此方法在调用后再次使用此对象任何方法均将获得一个OperatorIsEnd的异常。
 	 */
 	fun close()
+
+	/**
+	 * 给定一个表名,返回一个表结构对象
+	 */
+	fun getTableInfo(tableName: String): List<TableStructure>
+
+}
+
+enum class ColumnType {
+	UNKNOWN, INT4, INT8, INT2, JSON, VARCHAR, TIMESTAMP, MONEY, VARCHAR_ARRAY, INT4_ARRAY, NUMERIC, BIT, BOOLEAN, UUID, INT2_ARRAY, INT8_ARRAY
+}
+
+data class TableStructure(val name: String, val type: ColumnType, val notNull: Boolean, val defaultValue: String, val description: String, val isPrimary: Boolean) {
+	override fun toString(): String {
+		return "列名:$name\t\t类型:$type\t\t必填:$notNull\t\t默认值:$defaultValue\t\t描述:$description\t\t主键:$isPrimary"
+	}
 }
 
 abstract class AbstractJDBCHelper(private val connection: Connection) : Helper {
@@ -141,6 +166,10 @@ abstract class AbstractJDBCHelper(private val connection: Connection) : Helper {
 		}
 	}
 
+
+	override fun getTableInfo(tableName: String): List<TableStructure> {
+		TODO("需要实现类自己实现的方法。")
+	}
 
 	override fun getAutoCommit(): Boolean {
 		return connection.autoCommit
@@ -236,11 +265,17 @@ abstract class AbstractJDBCHelper(private val connection: Connection) : Helper {
 		return execute(generateExecuteSql(), then)
 	}
 
+
 	override fun query(sql: String, then: (ResultSet) -> Unit) {
 		checkOperator()
 
 		log.debug("sql:$sql")
-		connection.createStatement().use { it.executeQuery(sql).use(then) }
+		connection.createStatement().use {
+			it.executeQuery(sql).use {
+				while (it.next())
+					then(it)
+			}
+		}
 
 		if (connection.autoCommit) {
 			close()
@@ -248,6 +283,11 @@ abstract class AbstractJDBCHelper(private val connection: Connection) : Helper {
 	}
 
 	override fun query(then: (ResultSet) -> Unit) {
+		query(generateQuerySql(), then)
+	}
+
+	override fun query(joint: Array<String>, then: (ResultSet) -> Unit) {
+		this.jointSql = joint
 		query(generateQuerySql(), then)
 	}
 
