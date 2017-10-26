@@ -19,13 +19,28 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	}
 
 	/**
+	 * 根据传入的sql语句获得对象.
+	 *
+	 * 注意:此对象必须能够返回当前的类型的值。否则将
+	 */
+	fun exec(sql: String): List<R> {
+		val list = mutableListOf<R>()
+
+		JDBCHelperFactory.helper.query(sql) {
+			list.add((factory as AbstractFactory).setFieldDataByDB(it))
+		}
+
+		return list
+	}
+
+	/**
 	 * 执行一个查询,并返回相应的列表的结果集。
 	 */
 	fun exec(): List<R> {
 		val list = mutableListOf<R>()
 
 		JDBCHelperFactory.helper.query(this.jointSql) {
-			list.add(factory.get("id", it.getInt("id")))
+			list.add((factory as AbstractFactory).setFieldDataByDB(it))
 		}
 
 		return list

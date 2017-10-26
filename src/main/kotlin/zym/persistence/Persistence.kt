@@ -1,5 +1,8 @@
 package zym.persistence
 
+import org.apache.logging.log4j.LogManager
+import zym.dbHelper.JDBCHelperFactory
+
 /**
  * 表明一个可以操作的实例化的对象,此对象与数据库表记录相对应.
  *
@@ -18,7 +21,7 @@ interface Persistence {
 	 * @param <T>  指定返回值的类型
 	 * @return 如果名称未指定，返回null
 	</T> */
-	operator fun <T> get(name: String): T
+	operator fun <T> get(name: String): T?
 
 	/**
 	 * 得到指定名称的数据的值.
@@ -40,15 +43,6 @@ interface Persistence {
 	operator fun <T> set(name: String, value: T)
 
 	/**
-	 * 将一个数据写入指定名称的值当中
-	 *
-	 * @param field  指定的列对象
-	 * @param value 要更新的值
-	 * @param <T>   值的类型。
-	</T> */
-	operator fun <T> set(field: Field, value: T)
-
-	/**
 	 * 刷新数据至持久层.
 	 *
 	 *
@@ -56,7 +50,12 @@ interface Persistence {
 	 *
 	 * @return true 成功，false 失败。
 	 */
-	fun flush(): Boolean
+	fun update(): Boolean
+
+	/**
+	 * 将数据保存至持久层当中
+	 */
+	fun save(): Boolean
 
 	/**
 	 * 将此接口代表的数据删除.
@@ -69,13 +68,109 @@ interface Persistence {
 	fun delete(): Boolean
 
 	/**
-	 * 从数据当中获取指定的数据列的索引值,并回填至对象当中.
+	 * 生成此工厂类对应表的索引值,放入对应的索引字段当中,并且将此值返回
 	 *
-	 * 此方法一般用与在需要立即得到ID值并继续执行后续动作时使用。
+	 * 此表必须设置了索引字段,并且有明确的索引获取方式
+	 * 此表当中索引必须有且仅有一个
 	 *
-	 * 执行此方法并未将数据进行持久化动作
-	 *
-	 * @param columnName
+	 * 正常返回得到的索引值。如果无法获得索引时,返回值 < 0
 	 */
-	fun loadSerialToColumn(columnName :String = "id",seq :String? = null)
+	fun generateSequence(): Long
+}
+
+private val log = LogManager.getLogger(AbstractPersistence::class.java.name)
+
+abstract class AbstractPersistence(private val factory: AbstractFactory<Persistence>) : Persistence {
+	private val data = Array<Any?>(factory.fields.size) { null }
+
+	override fun <T> get(name: String): T? {
+		val index = factory.find(name)
+		if (index < 0) {
+			log.error("未找到指定名称的字段。")
+			return null
+		}
+
+		@Suppress("UNCHECKED_CAST")
+		return data[index] as T
+	}
+
+	override fun <T> get(name: String, defaultValue: T): T {
+		return get(name) ?: defaultValue
+	}
+
+	override fun <T> set(name: String, value: T) {
+		val index = factory.find(name)
+		if (index < 0) {
+			log.error("未找到指定名称的字段。")
+			return
+		}
+
+		data[index] = value
+	}
+
+	override fun save(): Boolean {
+		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	}
+
+	override fun update(): Boolean {
+		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	}
+
+	override fun delete(): Boolean {
+		val helper = JDBCHelperFactory.helper
+		val where = buildString {
+			append(" delete from ")
+			append(factory.tableName)
+			append(" where ")
+			if (!factory.pks.isEmpty()) {
+				factory.pks.forEach {
+					append(" ${it.name} = ")
+					append(helper.format(data[factory.find(it.name)]))
+					append(" and ")
+				}
+
+				delete(this.length - 5, this.length)
+			} else {
+				factory.fields.forEach {
+					append(" ${it.name} ")
+
+					val value = helper.format(data[factory.find(it.name)])
+					if (value == "null") {
+						append(" isnull ")
+					} else {
+						append(" = ")
+						append(value)
+					}
+
+					append(" and ")
+				}
+
+				delete(this.length - 5, this.length)
+			}
+		}
+
+		return JDBCHelperFactory.helper.execute("delete from ${factory.tableName} where $where") > 0
+	}
+
+	override fun generateSequence(): Long {
+		if (factory.sequence == null) {
+			return -1
+		}
+
+		return JDBCHelperFactory.helper.queryWithOneValue("select ${factory.sequence!!.defaultValue}")!!
+	}
+
+	override fun equals(other: Any?): Boolean {
+		if (other != null && other is AbstractPersistence && this.factory != other.factory) {
+			for (f in this.factory.pks) {
+				val v: Any? = this[f.name]
+				if (v == null || v != other[f.name])
+					return false
+			}
+		} else {
+			return false
+		}
+
+		return true
+	}
 }

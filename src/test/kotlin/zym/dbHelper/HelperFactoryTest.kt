@@ -11,6 +11,13 @@ import kotlin.concurrent.thread
 class HelperFactoryTest {
 
 	@Test
+	fun getTableInfo() {
+		JDBCHelperFactory.helper.getTableInfo("ddd").forEach {
+			println(it)
+		}
+	}
+
+	@Test
 	fun getDBHelper() {
 		thread {
 			while (true) {

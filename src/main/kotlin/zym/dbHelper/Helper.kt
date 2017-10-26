@@ -126,7 +126,7 @@ interface Helper {
 	/**
 	 * 将各种传入值格式化成数据库理解的值
 	 */
-	fun format(value: Any): String
+	fun format(value: Any?): String
 
 	/**
 	 * 操作完成后调用此操作来结束此对象的使用.并将资源返回以后使用.
@@ -142,17 +142,16 @@ interface Helper {
 	/**
 	 * 给定一个表名,返回一个表结构对象
 	 */
-	fun getTableInfo(tableName: String): List<TableStructure>
-
+	fun getTableInfo(tableName: String): List<Field>
 }
 
 enum class ColumnType {
 	UNKNOWN, INT4, INT8, INT2, JSON, VARCHAR, TIMESTAMP, MONEY, VARCHAR_ARRAY, INT4_ARRAY, NUMERIC, BIT, BOOLEAN, UUID, INT2_ARRAY, INT8_ARRAY
 }
 
-data class TableStructure(val name: String, val type: ColumnType, val notNull: Boolean, val defaultValue: String, val description: String, val isPrimary: Boolean) {
+data class Field(val name: String, val type: ColumnType, val notNull: Boolean, val defaultValue: String, val description: String, val isPrimary: Boolean, val isSequence: Boolean) {
 	override fun toString(): String {
-		return "列名:$name\t\t类型:$type\t\t必填:$notNull\t\t默认值:$defaultValue\t\t描述:$description\t\t主键:$isPrimary"
+		return "列名:$name\t\t类型:$type\t\t必填:$notNull\t\t默认值:$defaultValue\t\t描述:$description\t\t主键:$isPrimary\t\t序列:$isSequence"
 	}
 }
 
@@ -167,7 +166,7 @@ abstract class AbstractJDBCHelper(private val connection: Connection) : Helper {
 	}
 
 
-	override fun getTableInfo(tableName: String): List<TableStructure> {
+	override fun getTableInfo(tableName: String): List<Field> {
 		TODO("需要实现类自己实现的方法。")
 	}
 
@@ -376,28 +375,28 @@ abstract class AbstractJDBCHelper(private val connection: Connection) : Helper {
 
 @Suppress("unused")
 class MSSQLServer(connection: Connection) : AbstractJDBCHelper(connection) {
-	override fun format(value: Any): String {
+	override fun format(value: Any?): String {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
 }
 
 @Suppress("unused")
 class MySql(connection: Connection) : AbstractJDBCHelper(connection) {
-	override fun format(value: Any): String {
+	override fun format(value: Any?): String {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
 }
 
 @Suppress("unused")
 class H2(connection: Connection) : AbstractJDBCHelper(connection) {
-	override fun format(value: Any): String {
+	override fun format(value: Any?): String {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
 }
 
 @Suppress("unused")
 class OracleHelper(connection: Connection) : AbstractJDBCHelper(connection) {
-	override fun format(value: Any): String {
+	override fun format(value: Any?): String {
 		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
 	}
 }

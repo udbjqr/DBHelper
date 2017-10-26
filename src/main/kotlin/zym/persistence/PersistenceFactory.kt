@@ -1,5 +1,10 @@
 package zym.persistence
 
+import org.apache.logging.log4j.LogManager
+import zym.dbHelper.Field
+import zym.dbHelper.JDBCHelperFactory
+import java.sql.ResultSet
+
 /**
  * 持久化对象实例的工厂接口.
  * <p>
@@ -20,26 +25,123 @@ package zym.persistence
 interface Factory<out T : Persistence> {
 	val tableName: String
 
-	//	fun getTableName(): String
 	fun createQuery(): Query<T>
 
+	/**
+	 * 根据给定的列名与值,给出相应的对象。
+	 */
 	fun get(name: String, value: Any): T?
 
-	fun createNewObject(): T
+	/**
+	 * 返回一个新的对象,此对象为空对象
+	 */
+	fun getNewObject(): T
+
+	/**
+	 * 设置此对象是否可以被缓存,默认不进行缓存
+	 */
+	fun setCacheObject(cache: Boolean)
+
+	/**
+	 * 得到是否缓存对象
+	 */
+	fun isCacheObject(): Boolean
 }
 
-class PersistenceFactory<out T : Persistence>(override val tableName: String) :Factory<T>{
-	override fun get(name: String, value: Any): T? {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+private val log = LogManager.getLogger(AbstractFactory::class.java.name)
+
+abstract class AbstractFactory<out T : Persistence>(final override val tableName: String) : Factory<T> {
+	internal val fields: List<Field> = JDBCHelperFactory.helper.getTableInfo(tableName)
+	internal val pks: ArrayList<Field> = ArrayList()
+	internal var sequence: Field? = null
+	private val data = ArrayList<T>()
+	private var needCache = false
+	private val sql: String
+
+
+	init {
+		val builder = StringBuilder("select ")
+
+		for (field in fields) {
+			if (field.isPrimary) {
+				pks.add(field)
+			}
+			if (field.isSequence) {
+				sequence = field
+			}
+
+			builder.append(field.name).append(",")
+		}
+
+		sql = builder.delete(builder.length - 1, builder.length).append(" from $tableName ").append(" where ").toString()
 	}
 
-	override fun createNewObject(): T {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	override fun setCacheObject(cache: Boolean) {
+		this.needCache = cache
+	}
+
+	override fun isCacheObject(): Boolean {
+		return this.needCache
+	}
+
+	internal fun find(name: String): Int {
+		return fields.indices.firstOrNull { fields[it].name == name }
+			?: -1
+	}
+
+	private fun findProduct(name: String, value: Any): T? {
+		if (needCache) {
+			data.forEach {
+				if (value == it[name])
+					return it
+			}
+		}
+
+		return null
+	}
+
+
+	override fun get(name: String, value: Any): T? {
+		if (find(name) < 0) {
+			log.error("在数据库表:$tableName 中未定义此字段名:$name")
+		}
+
+		var result = findProduct(name, value)
+		if (result != null)
+			return result
+
+		JDBCHelperFactory.helper.query("") {
+			result = setFieldDataByDB(it)
+		}
+
+		return holdProduct(result!!)
+	}
+
+	private fun holdProduct(product: T): T {
+		if (needCache && data.contains(product)) {
+			data.add(product)
+		}
+
+		return product
+	}
+
+	override fun getNewObject(): T {
+		return createNewObject()
+	}
+
+	internal abstract fun createNewObject(): T
+
+	internal fun setFieldDataByDB(set: ResultSet): T {
+		val product = createNewObject()
+		for (f in fields) {
+			product[f.name] = set.getObject(f.name)
+		}
+
+		return product
 	}
 
 	override fun createQuery(): Query<T> {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+		return Query(this)
 	}
-
 }
 
