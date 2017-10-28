@@ -1,7 +1,10 @@
 package zym.persistence
 
 import org.apache.logging.log4j.LogManager
+import zym.dbHelper.Field
 import zym.dbHelper.JDBCHelperFactory
+import java.sql.ResultSet
+import java.util.*
 
 /**
  * 表明一个可以操作的实例化的对象,此对象与数据库表记录相对应.
@@ -55,7 +58,7 @@ interface Persistence {
 	/**
 	 * 将数据保存至持久层当中
 	 */
-	fun save(): Boolean
+	fun save()
 
 	/**
 	 * 将此接口代表的数据删除.
@@ -80,8 +83,9 @@ interface Persistence {
 
 private val log = LogManager.getLogger(AbstractPersistence::class.java.name)
 
-abstract class AbstractPersistence(private val factory: AbstractFactory<Persistence>) : Persistence {
+abstract class AbstractPersistence(private val factory: AbstractFactory<AbstractPersistence>) : Persistence {
 	private val data = Array<Any?>(factory.fields.size) { null }
+	private var isSaved = false
 
 	override fun <T> get(name: String): T? {
 		val index = factory.find(name)
@@ -105,18 +109,78 @@ abstract class AbstractPersistence(private val factory: AbstractFactory<Persiste
 			return
 		}
 
+		if (isSaved && (factory.fields[index].isPrimary || factory.fields[index].isSequence)) {
+			log.error("已经保存进数据库的无法修改序列与主键值")
+		}
+
 		data[index] = value
 	}
 
-	override fun save(): Boolean {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+	override fun save() {
+		val helper = JDBCHelperFactory.helper
+		if (factory.sequence != null) {
+			this.generateSequence()
+		}
+
+		val insertBuild = StringBuilder("insert into ${factory.tableName}(")
+		val valuesBuild = StringBuilder(" values(")
+
+		for (i in factory.fields.indices) {
+			val field = factory.fields[i]
+
+			insertBuild.append(field.name).append(",")
+			when {
+				data[i] != null -> valuesBuild.append(helper.format(data[i]))
+				field.defaultValue != "" -> valuesBuild.append(field.defaultValue)
+				else -> valuesBuild.append("null")
+			}
+			valuesBuild.append(",")
+		}
+
+		insertBuild.replace(insertBuild.length - 1, insertBuild.length, ")")
+		valuesBuild.replace(valuesBuild.length - 1, valuesBuild.length, ")")
+
+		helper.execute(insertBuild.toString() + valuesBuild.toString())
+
+		isSaved = true
 	}
 
 	override fun update(): Boolean {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+		val helper = JDBCHelperFactory.helper
+		if (factory.sequence != null) {
+			this.generateSequence()
+		}
+
+		val build = StringBuilder("update ${factory.tableName} set ")
+
+		for (i in factory.fields.indices) {
+			val field = factory.fields[i]
+			build.append(field.name).append(" = ")
+			when {
+				data[i] != null -> build.append(helper.format(data[i]))
+				field.defaultValue != "" -> build.append(field.defaultValue)
+				else -> build.append("null")
+			}
+			build.append(",")
+		}
+		build.delete(build.length - 1, build.length)
+
+		build.append(" where ")
+		for (field in factory.pks) {
+			build.append(field.name).append(" = ")
+				.append(helper.format(data[factory.fields.indexOf(field)])).append(" and ")
+		}
+		build.delete(build.length - 5, build.length)
+
+		return helper.execute(build.toString()) > 0
 	}
 
 	override fun delete(): Boolean {
+		if (!isSaved) {
+			log.warn("未写入持久层,无法调用删除方法")
+			return false
+		}
+
 		val helper = JDBCHelperFactory.helper
 		val where = buildString {
 			append(" delete from ")
@@ -153,11 +217,13 @@ abstract class AbstractPersistence(private val factory: AbstractFactory<Persiste
 	}
 
 	override fun generateSequence(): Long {
-		if (factory.sequence == null) {
-			return -1
-		}
+		val sequence: Field = factory.sequence ?: return -1
 
-		return JDBCHelperFactory.helper.queryWithOneValue("select ${factory.sequence!!.defaultValue}")!!
+		val seq = factory.find(sequence.name)
+
+		data[seq] = JDBCHelperFactory.helper.queryWithOneValue("select ${sequence.defaultValue}")!!
+
+		return data[seq] as Long
 	}
 
 	override fun equals(other: Any?): Boolean {
@@ -173,4 +239,23 @@ abstract class AbstractPersistence(private val factory: AbstractFactory<Persiste
 
 		return true
 	}
+
+	override fun hashCode(): Int {
+		return Arrays.hashCode(data)
+	}
+
+	internal fun setFieldDataByDB(set: ResultSet) {
+		for (f in factory.fields) {
+			set(f.name, set.getObject(f.name))
+		}
+
+		completeReadFromDB()
+		isSaved = true
+	}
+
+	/**
+	 * 此操作为从数据库读出数据后调用的方法.
+	 * 当写入数据库(插入与修改)后,也会调用此方法.
+	 */
+	internal abstract fun completeReadFromDB()
 }

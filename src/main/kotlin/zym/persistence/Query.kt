@@ -11,7 +11,7 @@ import java.sql.ResultSet
  * 每个查询对象可以多次获取数据并将之传出。
  * 每个查询对象对应一个工厂对象
  */
-class Query<out R : Persistence>(private val factory: Factory<R>) {
+class Query<out T : Persistence>(private val factory: Factory<T>) {
 	private val jointSql = Array(Joint.values().size) { "" }
 
 	init {
@@ -23,24 +23,30 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 注意:此对象必须能够返回当前的类型的值。否则将
 	 */
-	fun exec(sql: String): List<R> {
-		val list = mutableListOf<R>()
+	fun exec(sql: String): List<T> {
+		val list = mutableListOf<T>()
 
 		JDBCHelperFactory.helper.query(sql) {
-			list.add((factory as AbstractFactory).setFieldDataByDB(it))
+			readResultSet(it, list)
 		}
 
 		return list
 	}
 
+	private fun readResultSet(set: ResultSet, list: MutableList<T>) {
+		val item: T = factory.getNewObject()
+		(item as AbstractPersistence).setFieldDataByDB(set)
+		list.add(item)
+	}
+
 	/**
 	 * 执行一个查询,并返回相应的列表的结果集。
 	 */
-	fun exec(): List<R> {
-		val list = mutableListOf<R>()
+	fun exec(): List<T> {
+		val list = mutableListOf<T>()
 
 		JDBCHelperFactory.helper.query(this.jointSql) {
-			list.add((factory as AbstractFactory).setFieldDataByDB(it))
+			readResultSet(it, list)
 		}
 
 		return list
@@ -60,7 +66,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun form(sql: String): Query<R> {
+	fun form(sql: String): Query<T> {
 		jointSql[Joint.FORM.ordinal] = sql
 		return this
 	}
@@ -70,7 +76,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun groupBy(sql: String): Query<R> {
+	fun groupBy(sql: String): Query<T> {
 		jointSql[Joint.GROUP_BY.ordinal] = sql
 		return this
 	}
@@ -81,7 +87,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun orderBy(sql: String): Query<R> {
+	fun orderBy(sql: String): Query<T> {
 		jointSql[Joint.ORDER_BY.ordinal] = sql
 		return this
 	}
@@ -91,7 +97,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun select(sql: String): Query<R> {
+	fun select(sql: String): Query<T> {
 		jointSql[Joint.SELECT.ordinal] = sql
 		return this
 	}
@@ -101,7 +107,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun having(sql: String): Query<R> {
+	fun having(sql: String): Query<T> {
 		jointSql[Joint.HAVING.ordinal] = sql
 		return this
 	}
@@ -111,7 +117,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun offset(sql: String): Query<R> {
+	fun offset(sql: String): Query<T> {
 		jointSql[Joint.OFFSET.ordinal] = sql
 		return this
 	}
@@ -121,7 +127,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun limit(sql: String): Query<R> {
+	fun limit(sql: String): Query<T> {
 		jointSql[Joint.LIMIT.ordinal] = sql
 		return this
 	}
@@ -131,7 +137,7 @@ class Query<out R : Persistence>(private val factory: Factory<R>) {
 	 *
 	 * 未设置时值为""
 	 */
-	fun where(sql: String): Query<R> {
+	fun where(sql: String): Query<T> {
 		jointSql[Joint.WHERE.ordinal] = sql
 		return this
 	}

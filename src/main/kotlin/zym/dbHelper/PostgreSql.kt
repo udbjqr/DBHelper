@@ -2,7 +2,6 @@ package zym.dbHelper
 
 import com.alibaba.fastjson.JSONObject
 import java.util.*
-import kotlin.collections.ArrayList
 
 
 /**
@@ -17,9 +16,10 @@ class PostgreSql(trim: String, connection: Connection) : AbstractJDBCHelper(conn
 		if (value == null) return "null"
 
 		return when (value) {
-			is String, is Int -> "$trim$value$trim"
-			is Date -> "to_timestamp(${value.time})"
+			is String -> "$trim$value$trim"
+			is Int -> value.toString()
 			is JSONObject -> "$trim$value$trim::jsonb"
+			is Date -> "to_timestamp(${value.time})"
 			is Array<*> -> buildString {
 				append("$trim{")
 				value.forEach { append("$it,") }

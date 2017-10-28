@@ -3,7 +3,7 @@ package zym.persistence
 import org.apache.logging.log4j.LogManager
 import zym.dbHelper.Field
 import zym.dbHelper.JDBCHelperFactory
-import java.sql.ResultSet
+
 
 /**
  * 持久化对象实例的工厂接口.
@@ -46,17 +46,22 @@ interface Factory<out T : Persistence> {
 	 * 得到是否缓存对象
 	 */
 	fun isCacheObject(): Boolean
+
+	/**
+	 *根据指定名称,返回此列的信息
+	 */
+	operator fun get(name: String): Field
 }
 
 private val log = LogManager.getLogger(AbstractFactory::class.java.name)
 
-abstract class AbstractFactory<out T : Persistence>(final override val tableName: String) : Factory<T> {
+abstract class AbstractFactory<out T : AbstractPersistence>(final override val tableName: String) : Factory<T> {
 	internal val fields: List<Field> = JDBCHelperFactory.helper.getTableInfo(tableName)
 	internal val pks: ArrayList<Field> = ArrayList()
 	internal var sequence: Field? = null
 	private val data = ArrayList<T>()
 	private var needCache = false
-	private val sql: String
+	private val selectSql: String
 
 
 	init {
@@ -73,7 +78,7 @@ abstract class AbstractFactory<out T : Persistence>(final override val tableName
 			builder.append(field.name).append(",")
 		}
 
-		sql = builder.delete(builder.length - 1, builder.length).append(" from $tableName ").append(" where ").toString()
+		selectSql = builder.delete(builder.length - 1, builder.length).append(" from $tableName ").append(" where ").toString()
 	}
 
 	override fun setCacheObject(cache: Boolean) {
@@ -85,8 +90,7 @@ abstract class AbstractFactory<out T : Persistence>(final override val tableName
 	}
 
 	internal fun find(name: String): Int {
-		return fields.indices.firstOrNull { fields[it].name == name }
-			?: -1
+		return fields.indices.firstOrNull { fields[it].name == name } ?: -1
 	}
 
 	private fun findProduct(name: String, value: Any): T? {
@@ -110,8 +114,10 @@ abstract class AbstractFactory<out T : Persistence>(final override val tableName
 		if (result != null)
 			return result
 
-		JDBCHelperFactory.helper.query("") {
-			result = setFieldDataByDB(it)
+		val helper = JDBCHelperFactory.helper
+		helper.query("$selectSql $name = ${helper.format(value)}") {
+			result = createNewObject()
+			result!!.setFieldDataByDB(it)
 		}
 
 		return holdProduct(result!!)
@@ -129,19 +135,15 @@ abstract class AbstractFactory<out T : Persistence>(final override val tableName
 		return createNewObject()
 	}
 
-	internal abstract fun createNewObject(): T
+	protected abstract fun createNewObject(): T
 
-	internal fun setFieldDataByDB(set: ResultSet): T {
-		val product = createNewObject()
-		for (f in fields) {
-			product[f.name] = set.getObject(f.name)
-		}
-
-		return product
-	}
 
 	override fun createQuery(): Query<T> {
 		return Query(this)
+	}
+
+	override fun get(name: String): Field {
+		return fields[find(name)]
 	}
 }
 
