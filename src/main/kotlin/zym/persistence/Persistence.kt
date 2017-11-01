@@ -258,4 +258,13 @@ abstract class AbstractPersistence(private val factory: AbstractFactory<Abstract
 	 * 当写入数据库(插入与修改)后,也会调用此方法.
 	 */
 	internal abstract fun completeReadFromDB()
+
+	override fun toString(): String {
+		val fields = factory.fields
+		return buildString {
+			for (i in fields.indices) {
+				append("${fields[i].name}:${data[i]} \t\t")
+			}
+		}
+	}
 }

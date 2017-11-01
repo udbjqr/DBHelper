@@ -23,7 +23,8 @@ class UnitKtTest {
 
 	@Test
 	fun testObject() {
-		val aa = aaaF.get("id", 609)!!
+		val aa = aaaF.get("id", 203)
+		if(aa != null)
 		println("name:" + aa["name"] + " id:" + aa["id"])
 	}
 }
@@ -36,7 +37,7 @@ class Aaa : AbstractPersistence(aaaF) {
 
 }
 
-object aaaF : AbstractFactory<Aaa>("test") {
+object aaaF : AbstractFactory<Aaa>("dd") {
 	override fun createNewObject(): Aaa {
 		return Aaa()
 	}

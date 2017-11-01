@@ -120,7 +120,8 @@ abstract class AbstractFactory<out T : AbstractPersistence>(final override val t
 			result!!.setFieldDataByDB(it)
 		}
 
-		return holdProduct(result!!)
+
+		return if (result == null) null else holdProduct(result!!)
 	}
 
 	private fun holdProduct(product: T): T {

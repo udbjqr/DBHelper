@@ -53,6 +53,17 @@ class Query<out T : Persistence>(private val factory: Factory<T>) {
 	}
 
 	/**
+	 * 根据传入的sql语句获得对象.
+	 *
+	 * 此方法可执行任意查询操作，根据返回的结果集自行处理。
+	 *
+	 * 此方法可执行与指定的对象毫无关系的查询，建议使用DBHelper的查询方法
+	 */
+	fun exec(sql: String, then: (ResultSet) -> Unit) {
+		JDBCHelperFactory.helper.query(sql, then)
+	}
+
+	/**
 	 * 执行查询,并且直接处理,不返回对应对象
 	 *
 	 * 此处的参数无需调用ResultSet.next()方法。方法体内会自动调用.
