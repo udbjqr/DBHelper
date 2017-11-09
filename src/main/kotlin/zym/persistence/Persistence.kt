@@ -79,6 +79,11 @@ interface Persistence {
 	 * 正常返回得到的索引值。如果无法获得索引时,返回值 < 0
 	 */
 	fun generateSequence(): Long
+
+	/**
+	 * 遍历所有字段的方法.
+	 */
+	fun foreach(black: (name: String, value: Any?) -> Unit)
 }
 
 private val log = LogManager.getLogger(AbstractPersistence::class.java.name)
@@ -265,6 +270,13 @@ abstract class AbstractPersistence(private val factory: AbstractFactory<Abstract
 			for (i in fields.indices) {
 				append("${fields[i].name}:${data[i]} \t\t")
 			}
+		}
+	}
+
+	override fun foreach(black: (name: String, value: Any?) -> Unit) {
+		val fields = factory.fields
+		for (index in fields.indices) {
+			black(fields[index].name, data[index])
 		}
 	}
 }
