@@ -32,7 +32,6 @@ class UnitKtTest {
 
 class Aaa : AbstractPersistence(aaaF) {
 	override fun completeReadFromDB() {
-
 	}
 
 }

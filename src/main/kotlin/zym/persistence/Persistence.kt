@@ -257,7 +257,7 @@ abstract class AbstractPersistence(private val factory: AbstractFactory<Abstract
 	 * 此操作为从数据库读出数据后调用的方法.
 	 * 当写入数据库(插入与修改)后,也会调用此方法.
 	 */
-	internal abstract fun completeReadFromDB()
+	protected abstract fun completeReadFromDB()
 
 	override fun toString(): String {
 		val fields = factory.fields
