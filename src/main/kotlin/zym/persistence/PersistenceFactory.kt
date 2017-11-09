@@ -24,6 +24,7 @@ import zym.dbHelper.JDBCHelperFactory
  */
 interface Factory<out T : Persistence> {
 	val tableName: String
+	val relationship: Relationship?
 
 	fun createQuery(): Query<T>
 
@@ -55,7 +56,7 @@ interface Factory<out T : Persistence> {
 
 private val log = LogManager.getLogger(AbstractFactory::class.java.name)
 
-abstract class AbstractFactory<out T : AbstractPersistence>(final override val tableName: String) : Factory<T> {
+abstract class AbstractFactory<out T : AbstractPersistence>(final override val tableName: String, final override val relationship: Relationship?) : Factory<T> {
 	internal val fields: List<Field> = JDBCHelperFactory.helper.getTableInfo(tableName)
 	internal val pks: ArrayList<Field> = ArrayList()
 	internal var sequence: Field? = null
@@ -63,6 +64,7 @@ abstract class AbstractFactory<out T : AbstractPersistence>(final override val t
 	private var needCache = false
 	private val selectSql: String
 
+	constructor(tableName: String) : this(tableName, null)
 
 	init {
 		val builder = StringBuilder("select ")
@@ -120,6 +122,9 @@ abstract class AbstractFactory<out T : AbstractPersistence>(final override val t
 			result!!.setFieldDataByDB(it)
 		}
 
+		if(relationship != null){
+			result!!.loadAssociated()
+		}
 
 		return if (result == null) null else holdProduct(result!!)
 	}

@@ -5,6 +5,7 @@ import zym.dbHelper.Field
 import zym.dbHelper.JDBCHelperFactory
 import java.sql.ResultSet
 import java.util.*
+import kotlin.collections.ArrayList
 
 /**
  * 表明一个可以操作的实例化的对象,此对象与数据库表记录相对应.
@@ -84,13 +85,47 @@ interface Persistence {
 	 * 遍历所有字段的方法.
 	 */
 	fun foreach(black: (name: String, value: Any?) -> Unit)
+
+	/**
+	 * 读关联数据。并放置相关位置
+	 * 需要设置工厂类的relationship属性
+	 *
+	 */
+	fun loadAssociated()
+
+	/**
+	 * 给出此表是否存在从表数据。
+	 * 只计算当前已经取出的数据
+	 */
+	val hasAssociated: Boolean
+
+	/**
+	 * 得到从表的数据列表
+	 */
+	val associated: ArrayList<out Persistence>?
+
+	/**
+	 * 返回此表的工厂类
+	 */
+	val factory: Factory<Persistence>
+
+	/**
+	 * 增加一个从表的数据
+	 */
+	fun addAssociated(ass: Persistence)
+
+	/**
+	 * 删除一个从表的数据
+	 */
+	fun deleteAssociated(ass: Persistence)
 }
 
 private val log = LogManager.getLogger(AbstractPersistence::class.java.name)
 
-abstract class AbstractPersistence(private val factory: AbstractFactory<AbstractPersistence>) : Persistence {
+abstract class AbstractPersistence(final override val factory: AbstractFactory<AbstractPersistence>) : Persistence {
 	private val data = Array<Any?>(factory.fields.size) { null }
 	private var isSaved = false
+	private var associatedData: ArrayList<Persistence>? = null
 
 	override fun <T> get(name: String): T? {
 		val index = factory.find(name)
@@ -279,4 +314,53 @@ abstract class AbstractPersistence(private val factory: AbstractFactory<Abstract
 			black(fields[index].name, data[index])
 		}
 	}
+
+	override fun loadAssociated() {
+		val rel = factory.relationship!!
+		val query = rel.rTableFactory.createQuery()
+
+		val where = buildString {
+			for (a in rel.Fields) {
+				if (length > 0) append(" and ")
+				append(a.second).append(" = " + get(a.first))
+			}
+		}
+
+		query.exec("select * from ${rel.rTableFactory.tableName} where $where").forEach {
+			addAssociated(it)
+		}
+	}
+
+
+	/**
+	 * 增加一个从表的数据
+	 */
+	override fun addAssociated(ass: Persistence) {
+		val rel = factory.relationship!!
+		if (ass.factory != rel.rTableFactory) {
+			log.error("加入的子表数据与指定的不匹配,插入的{},指定的{}", ass.factory, rel.rTableFactory)
+		}
+
+		if (associatedData == null) {
+			associatedData = ArrayList()
+		}
+
+		associatedData!!.add(ass)
+	}
+
+	/**
+	 * 删除一个从表的数据
+	 */
+	override fun deleteAssociated(ass: Persistence) {
+		if (associatedData == null) {
+			log.warn("关联对象未加入任何数据")
+		} else
+			associatedData!!.remove(ass)
+	}
+
+	override val hasAssociated: Boolean
+		get() = associatedData != null
+
+	override val associated: ArrayList<Persistence>?
+		get() = associatedData
 }
